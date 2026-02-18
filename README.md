@@ -1,104 +1,76 @@
 # LeRobot Inference Server
 
-A REST API server for serving LeRobot policy models for easy inference. This server provides a simple HTTP interface to interact with LeRobot models including SmolVLA, ACT, Diffusion Policy, and other supported policies.
+A REST API server for serving LeRobot policy models. Provides a simple HTTP interface for inference with SmolVLA and other LeRobot policies.
 
 ## Features
 
-- 🚀 **Easy to Use**: Simple REST API with FastAPI
-- 🔌 **Multiple Policy Support**: Works with SmolVLA, ACT, Diffusion, PI0, and more
-- 🖼️ **Image Support**: Handle camera observations with base64 encoding
-- ⚡ **GPU Acceleration**: Automatic CUDA detection and usage
-- 📊 **Model Info Endpoint**: Query model configuration and capabilities
-- 🏥 **Health Checks**: Monitor server and model status
-- 🔄 **CORS Enabled**: Easy integration with web frontends
+- 🚀 Simple REST API with FastAPI  
+- 🔌 Multiple policy support (SmolVLA, ACT, Diffusion, PI0)
+- 🖼️ Image support via base64 encoding
+- ⚡ GPU acceleration (automatic CUDA detection)
+- 🌐 VSCode tunnel support for restricted networks
 
 ## Installation
 
-### 1. Install LeRobot
-
-First, ensure LeRobot is installed:
-
 ```bash
+# Install dependencies
+cd /workspace/vla_evaluation
+pip install -r requirements.txt
+
+# Install LeRobot (if not already installed)
 cd /workspace/lerobot
 pip install -e .[smolvla]
 ```
 
-For other policy types, use the appropriate extras:
-- `[act]` for ACT policy
-- `[diffusion]` for Diffusion policy
-- `[pi0]` for PI0 policy
-- `[async]` for async inference support
+## Quick Start
 
-### 2. Install Server Dependencies
+### 1. Start the Server
 
 ```bash
 cd /workspace/vla_evaluation
-pip install -r requirements.txt
-```
-
-## Quick Start
-
-### Starting the Server
-
-**Basic usage:**
-```bash
-python3 inference_server.py --model_id=NLTuan/smolvla_red_block_in_tape --port=8000
-```
-
-**With VSCode Port Forwarding (for blocked networks):**
-See [VSCODE_TUNNEL_SETUP.md](VSCODE_TUNNEL_SETUP.md) for detailed instructions on using VSCode DevTunnels.
-```bash
-# Start server
 python3 inference_server.py --port=8000
-
-# Forward port 8000 in VSCode PORTS tab (set to Public)
-# Then use the tunnel URL with the client:
-python client_tunnel.py --tunnel_url=https://YOUR-TUNNEL.use.devtunnels.ms
 ```
 
-**With specific device:**
+Server loads in ~20-30 seconds. You'll see:
+```
+Loading model from NLTuan/smolvla_red_block_in_tape...
+Model loaded successfully
+Uvicorn running on http://0.0.0.0:8000
+```
+
+### 2. Access the Server
+
+**Local access:**
 ```bash
-python inference_server.py \
-    --model_id=NLTuan/smolvla_red_block_in_tape \
-    --device=cuda \
-    --port=8000
+curl http://localhost:8000/health
 ```
 
-**With environment variables:**
+**Remote access via VSCode tunnel:**
+1. Open VSCode **PORTS** tab (bottom panel)
+2. Click **Forward a Port** → enter `8000`
+3. Right-click port 8000 → **Port Visibility** → **Public**
+4. Copy the tunnel URL (e.g., `https://abc-8000.use.devtunnels.ms`)
+5. Use this URL to access your server remotely
+
+### 3. Make Predictions
+
+**Using the Python client:**
 ```bash
-export MODEL_ID=NLTuan/smolvla_red_block_in_tape
-export PORT=8000
-export DEVICE=cuda
-python inference_server.py
+# Local
+python3 client_tunnel.py --local
+
+# Remote (tunnel)
+python3 client_tunnel.py --tunnel_url=https://YOUR-TUNNEL.use.devtunnels.ms
+
+# Interactive mode (will prompt for URL)
+python3 client_tunnel.py
 ```
 
-### Using the Client
+## API Endpoints
 
-```bash
-python client_example.py --server_url=http://localhost:8000
-```
+Visit http://localhost:8000/docs for interactive API documentation.
 
-Run specific examples:
-```bash
-# Simple state-only inference
-python client_example.py --example=simple
-
-# Image + state inference
-python client_example.py --example=image
-
-# Simulated robot control loop
-python client_example.py --example=loop
-```
-
-## API Documentation
-
-Once the server is running, visit:
-- **Interactive API docs**: http://localhost:8000/docs
-- **Alternative docs**: http://localhost:8000/redoc
-
-### Endpoints
-
-#### GET `/health`
+### `GET /health`
 Check server health and model status.
 
 **Response:**
@@ -111,8 +83,8 @@ Check server health and model status.
 }
 ```
 
-#### GET `/model/info`
-Get detailed model information.
+### `GET /model/info`  
+Get detailed model configuration.
 
 **Response:**
 ```json
@@ -121,13 +93,11 @@ Get detailed model information.
   "policy_type": "smolvla",
   "action_dim": 7,
   "chunk_size": 20,
-  "max_state_dim": 14,
-  "camera_inputs": ["top"],
-  "device": "cuda"
+  "camera_inputs": ["top"]
 }
 ```
 
-#### POST `/predict`
+### `POST /predict`
 Run inference on an observation.
 
 **Request:**
@@ -135,6 +105,7 @@ Run inference on an observation.
 {
   "observation": {
     "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+    "task": "pick up the red block",
     "observation.images.top": "base64_encoded_image_string"
   },
   "action_steps": 10
@@ -144,14 +115,9 @@ Run inference on an observation.
 **Response:**
 ```json
 {
-  "actions": [[0.1, 0.2, ...], [0.15, 0.21, ...], ...],
+  "actions": [[0.1, 0.2, ...], ...],
   "action_dim": 7,
-  "num_steps": 10,
-  "model_info": {
-    "model_id": "NLTuan/smolvla_red_block_in_tape",
-    "policy_type": "smolvla",
-    ...
-  }
+  "num_steps": 10
 }
 ```
 
@@ -160,82 +126,75 @@ Run inference on an observation.
 ### Python Client
 
 ```python
-from client_example import LeRobotInferenceClient
+from client_tunnel import LeRobotInferenceClient
 import numpy as np
 
-# Initialize client
+# Connect to server (local or tunnel)
 client = LeRobotInferenceClient("http://localhost:8000")
+# Or: client = LeRobotInferenceClient("https://abc-8000.use.devtunnels.ms")
 
 # Get model info
 info = client.get_model_info()
-print(f"Model: {info['model_id']}")
+print(f"Model: {info['model_id']}, Action dim: {info['action_dim']}")
 
-# Simple state observation
-observation = {
-    "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-}
-result = client.predict(observation)
-print(f"Predicted actions: {result['actions']}")
-
-# With image
+# Make prediction with image
 image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 observation = {
     "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+    "task": "pick up the red block",
     "observation.images.top": client.encode_image(image)
 }
+
 result = client.predict(observation, action_steps=20)
+print(f"Predicted {result['num_steps']} actions")
+print(f"First action: {result['actions'][0]}")
 ```
 
-### cURL Examples
+### Command Line (curl)
 
-**Health check:**
 ```bash
+# Health check
 curl http://localhost:8000/health
-```
 
-**Model info:**
-```bash
+# Model info
 curl http://localhost:8000/model/info
-```
 
-**Inference:**
-```bash
+# Prediction (requires base64 encoded image for SmolVLA)
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{
-    "observation": {
-      "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-    }
-  }'
-```
-
-### JavaScript/TypeScript
-
-```javascript
-const response = await fetch('http://localhost:8000/predict', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    observation: {
-      'observation.state': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-    },
-    action_steps: 10
-  })
-});
-
-const result = await response.json();
-console.log('Predicted actions:', result.actions);
+  -d '{"observation": {"observation.state": [0.1,0.2,0.3,0.4,0.5,0.6], "task": "pick red block"}}'
 ```
 
 ## Configuration
 
-Edit `server_config.yaml` to customize server settings:
+### Command Line Arguments
+
+```bash
+python3 inference_server.py \
+  --model_id=NLTuan/smolvla_red_block_in_tape \
+  --device=cuda \
+  --port=8000 \
+  --host=0.0.0.0
+```
+
+### Environment Variables
+
+```bash
+export MODEL_ID=NLTuan/smolvla_red_block_in_tape
+export PORT=8000
+export DEVICE=cuda
+python3 inference_server.py
+```
+
+### Config File
+
+Edit `server_config.yaml`:
 
 ```yaml
 model:
   model_id: "NLTuan/smolvla_red_block_in_tape"
   policy_type: "auto"
-  device: null  # Auto-detect
+  device: null  # Auto-detect (cuda/cpu)
 
 server:
   host: "0.0.0.0"
@@ -247,139 +206,46 @@ inference:
   timeout: 30
 ```
 
+## Troubleshooting
+
+### Port Already in Use
+```bash
+# Kill existing server
+pkill -f "inference_server.py"
+
+# Or use a different port
+python3 inference_server.py --port=8001
+```
+
+### CUDA Out of Memory
+```bash
+# Use CPU instead
+python3 inference_server.py --device=cpu
+```
+
+### Tunnel Connection Issues
+- Ensure port visibility is set to **Public** in VSCode
+- Check firewall settings
+- Verify tunnel URL is correct (should end with `.use.devtunnels.ms` or similar)
+
+## Files
+
+- **inference_server.py** - Main FastAPI server
+- **client_tunnel.py** - Python client (supports local and tunnel)
+- **requirements.txt** - Python dependencies
+- **server_config.yaml** - Configuration file
+- **.env.example** - Environment variable template
+
 ## Supported Models
 
 The server supports all LeRobot policy types:
 
-### Vision-Language-Action Models
-- **SmolVLA**: `NLTuan/smolvla_red_block_in_tape` or your fine-tuned model
-- **xVLA**: Vision-language-action models
-
-### Action Chunking Models
-- **ACT**: `lerobot/act_pusht_image`
-- **Diffusion Policy**: `lerobot/diffusion_pusht`
-
-### Generalist Models
-- **PI0**: `physical-intelligence/pi0-pusht`
-- **PI0.5**: Improved PI0 models
-- **GR00T**: NVIDIA's generalist robot models
-
-### Other Policies
-- **TDMPC**: Temporal Difference Model Predictive Control
-- **VQ-BeT**: Vector Quantized Behavior Transformers
-- **SAC**: Soft Actor-Critic (for RL environments)
-
-## Deployment
-
-### Docker (Coming Soon)
-
-```bash
-docker build -t lerobot-inference-server .
-docker run -p 8000:8000 \
-  -e MODEL_ID=NLTuan/smolvla_red_block_in_tape \
-  -e DEVICE=cuda \
-  --gpus all \
-  lerobot-inference-server
-```
-
-### Production Considerations
-
-1. **Use a production ASGI server**:
-   ```bash
-   gunicorn inference_server:app \
-     --workers 4 \
-     --worker-class uvicorn.workers.UvicornWorker \
-     --bind 0.0.0.0:8000
-   ```
-
-2. **Add authentication**: Implement API keys or OAuth
-
-3. **Rate limiting**: Use middleware or reverse proxy
-
-4. **Monitoring**: Add Prometheus metrics, logging aggregation
-
-5. **Load balancing**: Deploy multiple instances behind nginx/traefik
-
-## Troubleshooting
-
-### Issue: CUDA out of memory
-**Solution**: Use CPU or reduce batch size
-```bash
-python inference_server.py --device=cpu
-```
-
-### Issue: Model not found
-**Solution**: Verify model ID and HuggingFace access
-```bash
-huggingface-cli login
-python inference_server.py --model_id=your/model-id
-```
-
-### Issue: Port already in use
-**Solution**: Use a different port
-```bash
-python inference_server.py --port=8001
-```
-
-### Issue: Slow inference
-**Solution**: 
-- Ensure GPU is being used: Check `/health` endpoint
-- Reduce image resolution
-- Use a smaller model or quantized version
-
-## Performance Tips
-
-1. **Use GPU**: Always prefer CUDA for inference
-2. **Batch requests**: Group multiple observations when possible
-3. **Image compression**: Use appropriate image sizes
-4. **Model selection**: Choose appropriate model size for your hardware
-5. **Caching**: Consider caching preprocessors for repeated use
-
-## Development
-
-### Running in development mode with auto-reload:
-```bash
-python inference_server.py --reload
-```
-
-### Running tests:
-```bash
-pytest tests/
-```
-
-## Integration with LeRobot's Async Inference
-
-This REST API server complements LeRobot's native gRPC async inference system:
-
-- **REST API** (this server): Best for web services, simple integrations, cross-language support
-- **gRPC async**: Best for low-latency real-time robot control, high-frequency updates
-
-You can use both:
-```python
-# For web/HTTP clients: Use REST API
-# For robot control: Use native async inference with gRPC
-```
-
-See [LeRobot's async inference docs](https://github.com/huggingface/lerobot/blob/main/lerobot/src/lerobot/async_inference/) for gRPC-based control.
+- **SmolVLA**: Vision-Language-Action models (e.g., `NLTuan/smolvla_red_block_in_tape`)
+- **ACT**: Action Chunking Transformer (e.g., `lerobot/act_pusht_image`)
+- **Diffusion**: Diffusion Policy (e.g., `lerobot/diffusion_pusht`)
+- **PI0**: Physical Intelligence models (e.g., `physical-intelligence/pi0-pusht`)
+- **TDMPC**, **VQ-BeT**, and other LeRobot policies
 
 ## License
 
-This project follows the same license as LeRobot (Apache 2.0).
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new features
-4. Submit a pull request
-
-## Support
-
-- **LeRobot Discord**: [Join here](https://discord.gg/s3KuuzsPFb)
-- **Issues**: Open an issue on GitHub
-- **Docs**: Check [LeRobot documentation](https://github.com/huggingface/lerobot)
-
-## Acknowledgements
-
-Built on top of the excellent [LeRobot](https://github.com/huggingface/lerobot) library by HuggingFace.
+See [LICENSE](LICENSE) file.
