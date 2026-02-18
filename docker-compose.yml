@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  lerobot-inference:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lerobot-inference-server:latest
+    container_name: lerobot-inference
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - MODEL_ID=${MODEL_ID:-NLTuan/smolvla_red_block_in_tape}
+      - PORT=8000
+      - HOST=0.0.0.0
+      - DEVICE=${DEVICE:-cuda}
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      # Cache models to avoid re-downloading
+      - huggingface-cache:/root/.cache/huggingface
+      # Optional: mount local models
+      # - ./models:/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  huggingface-cache:
+    driver: local
+
+# Usage:
+# docker-compose up -d              # Start in background
+# docker-compose logs -f            # View logs
+# docker-compose down               # Stop and remove
+# docker-compose ps                 # Check status

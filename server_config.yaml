@@ -1,0 +1,78 @@
+# LeRobot Inference Server Configuration
+
+# Model Configuration
+model:
+  # Model identifier from HuggingFace Hub or local path
+  model_id: "NLTuan/smolvla_red_block_in_tape"
+  
+  # Policy type: auto, smolvla, act, diffusion, tdmpc, vqbet, pi0, pi05, groot
+  policy_type: "auto"
+  
+  # Device: cuda, cpu, or null for auto-detection
+  device: null
+
+# Server Configuration
+server:
+  # Host address 
+  host: "0.0.0.0"
+  
+  # Port number
+  port: 8000
+  
+  # Enable auto-reload for development
+  reload: false
+  
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_level: "INFO"
+
+# CORS Configuration
+cors:
+  # Allowed origins (use ["*"] for all)
+  allow_origins: ["*"]
+  
+  # Allow credentials
+  allow_credentials: true
+  
+  # Allowed methods
+  allow_methods: ["*"]
+  
+  # Allowed headers
+  allow_headers: ["*"]
+
+# Inference Configuration
+inference:
+  # Maximum batch size for inference
+  max_batch_size: 1
+  
+  # Default number of action steps if not specified in request
+  default_action_steps: null  # Uses model's default chunk size
+  
+  # Timeout for inference requests in seconds
+  timeout: 30
+
+# Example Model Configurations
+# Uncomment and modify as needed
+
+# SmolVLA Configuration
+# model:
+#   model_id: "NLTuan/smolvla_red_block_in_tape"
+#   policy_type: "smolvla"
+#   device: "cuda"
+
+# ACT Configuration
+# model:
+#   model_id: "lerobot/act_pusht_image"
+#   policy_type: "act"
+#   device: "cuda"
+
+# Diffusion Policy Configuration
+# model:
+#   model_id: "lerobot/diffusion_pusht"
+#   policy_type: "diffusion"
+#   device: "cuda"
+
+# PI0 Configuration
+# model:
+#   model_id: "physical-intelligence/pi0-pusht"
+#   policy_type: "pi0"
+#   device: "cuda"
