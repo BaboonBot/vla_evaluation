@@ -101,18 +101,23 @@ class LeRobotInferenceClient:
 
 
 def example_simple_state_inference(client: LeRobotInferenceClient):
-    """Example: Simple state-only inference."""
+    """Example: Simple inference with minimal inputs."""
     print("\n" + "="*70)
-    print("Example 1: Simple State Inference")
+    print("Example 1: Simple Inference")
     print("="*70)
+    
+    # SmolVLA requires at least one camera image
+    image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
     
     observation = {
         "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-        "task": "pick up the red block"
+        "task": "pick up the red block",
+        "observation.images.camera1": client.encode_image(image)
     }
     
     print(f"Input state: {observation['observation.state']}")
     print(f"Task: {observation['task']}")
+    print("Image: 480x640x3 (camera1)")
     
     try:
         result = client.predict(observation, action_steps=5)
@@ -181,17 +186,19 @@ def example_batch_inference(client: LeRobotInferenceClient):
     print("Example 4: Batch Inference")
     print("="*70)
     
-    observations = [
-        {
-            "observation.state": [i * 0.1, i * 0.2, 0.3, 0.4, 0.5, 0.6],
-            "task": "pick up the red block"
+    print(f"Processing 3 observations sequentially...")
+    
+    for i in range(3):
+        # Each observation needs an image for SmolVLA
+        state = [i * 0.1, i * 0.2, 0.3, 0.4, 0.5, 0.6]
+        image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        
+        obs = {
+            "observation.state": state,
+            "task": "pick up the red block",
+            "observation.images.camera1": client.encode_image(image)
         }
-        for i in range(3)
-    ]
-    
-    print(f"Processing {len(observations)} observations...")
-    
-    for i, obs in enumerate(observations):
+        
         try:
             result = client.predict(obs, action_steps=5)
             print(f"  Observation {i + 1}: predicted {result['num_steps']} actions")

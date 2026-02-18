@@ -76,13 +76,13 @@ print(f"First action: {result['actions'][0]}")
 
 ### SmolVLA Requirements
 
-**Must include at least one camera image** in every request:
+**All examples now include camera images** because SmolVLA requires them. Valid camera keys:
 - `observation.images.camera1`
 - `observation.images.camera2`
 - `observation.images.camera3`
 - `observation.images.empty_camera_0`
 
-Requests without images will fail with: `"All image features are missing from the batch"`
+**Every request must include at least one camera image.**
 
 ### Image Format
 
@@ -154,9 +154,24 @@ python3 inference_server.py --port=8000
 - Test locally first: `curl http://localhost:8000/health`
 
 ### 500 Error: "All image features are missing"
-You forgot to include a camera image! Add one of the required camera keys:
+**This should not happen with the provided examples** (they all include images now).
+
+If you see this in your own code, you forgot to include a camera image:
+
 ```python
-"observation.images.camera1": client.encode_image(image)
+# ❌ WRONG - Missing image
+observation = {
+    "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+    "task": "pick up the red block"
+}
+
+# ✓ CORRECT - Includes image
+image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+observation = {
+    "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+    "task": "pick up the red block",
+    "observation.images.camera1": client.encode_image(image)
+}
 ```
 
 ## File Structure

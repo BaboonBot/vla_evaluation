@@ -86,7 +86,15 @@ python3 client_tunnel.py --tunnel_url=https://YOUR-TUNNEL.use.devtunnels.ms
 
 # Interactive mode (will prompt for URL)
 python3 client_tunnel.py
+
+# Run specific example
+python3 client_tunnel.py --local --example=image
+
+# With custom timeout (for slower connections)
+python3 client_tunnel.py --local --timeout=180
 ```
+
+All examples include camera images (required for SmolVLA) and will complete successfully.
 
 ## API Endpoints
 
