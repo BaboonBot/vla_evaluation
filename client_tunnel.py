@@ -16,20 +16,185 @@ Usage:
 """
 
 import argparse
+import base64
+import io
 import json
 import os
-import re
-import subprocess
 import sys
+from typing import Any, Dict, Optional
 
-# Import the main client
-from client_example import (
-    LeRobotInferenceClient,
-    example_simple_state_inference,
-    example_image_inference,
-    example_real_robot_loop,
-    example_batch_inference
-)
+import numpy as np
+import requests
+from PIL import Image
+
+
+class LeRobotInferenceClient:
+    """Client for LeRobot Inference Server."""
+    
+    def __init__(self, server_url: str):
+        """
+        Initialize client.
+        
+        Args:
+            server_url: Base URL of the inference server
+        """
+        self.server_url = server_url.rstrip('/')
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get model information."""
+        response = requests.get(f"{self.server_url}/model/info", timeout=10)
+        response.raise_for_status()
+        return response.json()
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Check server health."""
+        response = requests.get(f"{self.server_url}/health", timeout=10)
+        response.raise_for_status()
+        return response.json()
+    
+    def predict(
+        self,
+        observation: Dict[str, Any],
+        action_steps: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Run inference on an observation.
+        
+        Args:
+            observation: Observation dict with state and/or images
+            action_steps: Number of action steps to predict
+            
+        Returns:
+            Prediction result with actions
+        """
+        payload = {"observation": observation}
+        if action_steps is not None:
+            payload["action_steps"] = action_steps
+        
+        response = requests.post(
+            f"{self.server_url}/predict",
+            json=payload,
+            timeout=60
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    @staticmethod
+    def encode_image(image: np.ndarray) -> str:
+        """Encode numpy image to base64 string."""
+        if image.dtype != np.uint8:
+            image = (image * 255).astype(np.uint8)
+        
+        img = Image.fromarray(image)
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode()
+    
+    @staticmethod
+    def decode_image(base64_str: str) -> np.ndarray:
+        """Decode base64 string to numpy image."""
+        img_data = base64.b64decode(base64_str)
+        img = Image.open(io.BytesIO(img_data))
+        return np.array(img)
+
+
+def example_simple_state_inference(client: LeRobotInferenceClient):
+    """Example: Simple state-only inference."""
+    print("\n" + "="*70)
+    print("Example 1: Simple State Inference")
+    print("="*70)
+    
+    observation = {
+        "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        "task": "pick up the red block"
+    }
+    
+    print(f"Input state: {observation['observation.state']}")
+    print(f"Task: {observation['task']}")
+    
+    try:
+        result = client.predict(observation, action_steps=5)
+        print(f"\nPredicted {result['num_steps']} action steps")
+        print(f"Action dimension: {result['action_dim']}")
+        print(f"First action: {result['actions'][0]}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def example_image_inference(client: LeRobotInferenceClient):
+    """Example: Image + state inference."""
+    print("\n" + "="*70)
+    print("Example 2: Image + State Inference")
+    print("="*70)
+    
+    # Create dummy images (SmolVLA needs camera1)
+    image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+    
+    observation = {
+        "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        "task": "pick up the red block",
+        "observation.images.camera1": client.encode_image(image)
+    }
+    
+    print(f"Input: state + image ({image.shape})")
+    
+    try:
+        result = client.predict(observation, action_steps=10)
+        print(f"\nPredicted {result['num_steps']} action steps")
+        print(f"First few actions: {result['actions'][:3]}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def example_real_robot_loop(client: LeRobotInferenceClient):
+    """Example: Simulated robot control loop."""
+    print("\n" + "="*70)
+    print("Example 3: Robot Control Loop (Simulated)")
+    print("="*70)
+    
+    print("Simulating 3 control steps...")
+    
+    for step in range(3):
+        # Simulated observation
+        state = [0.1 * step, 0.2 * step, 0.3, 0.4, 0.5, 0.6]
+        image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        
+        observation = {
+            "observation.state": state,
+            "task": "pick up the red block",
+            "observation.images.camera1": client.encode_image(image)
+        }
+        
+        try:
+            result = client.predict(observation, action_steps=10)
+            action = result['actions'][0]
+            print(f"  Step {step + 1}: predicted action = {action[:3]}...")
+        except Exception as e:
+            print(f"  Step {step + 1}: Error - {e}")
+
+
+def example_batch_inference(client: LeRobotInferenceClient):
+    """Example: Batch inference (sequential)."""
+    print("\n" + "="*70)
+    print("Example 4: Batch Inference")
+    print("="*70)
+    
+    observations = [
+        {
+            "observation.state": [i * 0.1, i * 0.2, 0.3, 0.4, 0.5, 0.6],
+            "task": "pick up the red block"
+        }
+        for i in range(3)
+    ]
+    
+    print(f"Processing {len(observations)} observations...")
+    
+    for i, obs in enumerate(observations):
+        try:
+            result = client.predict(obs, action_steps=5)
+            print(f"  Observation {i + 1}: predicted {result['num_steps']} actions")
+        except Exception as e:
+            print(f"  Observation {i + 1}: Error - {e}")
 
 
 def detect_vscode_tunnel_url(port: int = 8000) -> str:
