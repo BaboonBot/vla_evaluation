@@ -31,24 +31,26 @@ from PIL import Image
 class LeRobotInferenceClient:
     """Client for LeRobot Inference Server."""
     
-    def __init__(self, server_url: str):
+    def __init__(self, server_url: str, timeout: int = 120):
         """
         Initialize client.
         
         Args:
             server_url: Base URL of the inference server
+            timeout: Request timeout in seconds (default: 120)
         """
         self.server_url = server_url.rstrip('/')
+        self.timeout = timeout
     
     def get_model_info(self) -> Dict[str, Any]:
         """Get model information."""
-        response = requests.get(f"{self.server_url}/model/info", timeout=10)
+        response = requests.get(f"{self.server_url}/model/info", timeout=self.timeout)
         response.raise_for_status()
         return response.json()
     
     def health_check(self) -> Dict[str, Any]:
         """Check server health."""
-        response = requests.get(f"{self.server_url}/health", timeout=10)
+        response = requests.get(f"{self.server_url}/health", timeout=self.timeout)
         response.raise_for_status()
         return response.json()
     
@@ -74,7 +76,7 @@ class LeRobotInferenceClient:
         response = requests.post(
             f"{self.server_url}/predict",
             json=payload,
-            timeout=60
+            timeout=self.timeout
         )
         response.raise_for_status()
         return response.json()
@@ -218,10 +220,10 @@ def detect_vscode_tunnel_url(port: int = 8000) -> str:
     return None
 
 
-def test_connection(url: str) -> bool:
+def test_connection(url: str, timeout: int = 120) -> bool:
     """Test if we can connect to the server."""
     try:
-        client = LeRobotInferenceClient(url)
+        client = LeRobotInferenceClient(url, timeout=timeout)
         info = client.get_model_info()
         print(f"✓ Connected successfully!")
         print(f"  Model: {info['model_id']}")
@@ -309,6 +311,12 @@ Examples:
         action="store_true",
         help="Only test connection, don't run examples"
     )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=120,
+        help="Request timeout in seconds (default: 120)"
+    )
     
     args = parser.parse_args()
     
@@ -328,7 +336,7 @@ Examples:
     
     # Test connection
     print(f"\nTesting connection to {server_url}...")
-    if not test_connection(server_url):
+    if not test_connection(server_url, args.timeout):
         print("\n❌ Could not connect to server!")
         print("\nTroubleshooting:")
         print("1. Make sure the inference server is running:")
@@ -348,7 +356,7 @@ Examples:
     print("Running Examples with Tunnel Connection")
     print('='*70)
     
-    client = LeRobotInferenceClient(server_url)
+    client = LeRobotInferenceClient(server_url, timeout=args.timeout)
     
     # Run examples
     examples = {

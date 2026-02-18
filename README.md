@@ -2,6 +2,28 @@
 
 A REST API server for serving LeRobot policy models. Provides a simple HTTP interface for inference with SmolVLA and other LeRobot policies.
 
+## Quick Reference
+
+```bash
+# Start server
+cd /workspace/vla_evaluation
+python3 inference_server.py --port=8000
+
+# Test locally
+python3 client_tunnel.py --local
+
+# Test with tunnel URL
+python3 client_tunnel.py --tunnel_url=https://YOUR-TUNNEL.use.devtunnels.ms
+
+# Check health
+curl http://localhost:8000/health
+
+# Stop server
+pkill -f "inference_server.py"
+```
+
+> **⚠️ Important**: SmolVLA requires **at least one camera image** in every request. Use `observation.images.camera1`, `camera2`, `camera3`, or `empty_camera_0`.
+
 ## Features
 
 - 🚀 Simple REST API with FastAPI  
@@ -91,9 +113,14 @@ Get detailed model configuration.
 {
   "model_id": "NLTuan/smolvla_red_block_in_tape",
   "policy_type": "smolvla",
-  "action_dim": 7,
-  "chunk_size": 20,
-  "camera_inputs": ["top"]
+  "action_dim": 6,
+  "chunk_size": 32,
+  "camera_inputs": [
+    "observation.images.camera1",
+    "observation.images.camera2",
+    "observation.images.camera3",
+    "observation.images.empty_camera_0"
+  ]
 }
 ```
 
@@ -106,7 +133,7 @@ Run inference on an observation.
   "observation": {
     "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
     "task": "pick up the red block",
-    "observation.images.top": "base64_encoded_image_string"
+    "observation.images.camera1": "base64_encoded_image_string"
   },
   "action_steps": 10
 }
@@ -116,10 +143,12 @@ Run inference on an observation.
 ```json
 {
   "actions": [[0.1, 0.2, ...], ...],
-  "action_dim": 7,
-  "num_steps": 10
+  "action_dim": 6,
+  "num_steps": 32
 }
 ```
+
+> **⚠️ IMPORTANT**: SmolVLA requires **at least one camera image** in the observation. Use one of: `observation.images.camera1`, `observation.images.camera2`, `observation.images.camera3`, or `observation.images.empty_camera_0`. Requests without images will fail.
 
 ## Usage Examples
 
@@ -137,12 +166,12 @@ client = LeRobotInferenceClient("http://localhost:8000")
 info = client.get_model_info()
 print(f"Model: {info['model_id']}, Action dim: {info['action_dim']}")
 
-# Make prediction with image
+# Make prediction with image (REQUIRED for SmolVLA)
 image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 observation = {
     "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
     "task": "pick up the red block",
-    "observation.images.top": client.encode_image(image)
+    "observation.images.camera1": client.encode_image(image)  # Use camera1, camera2, camera3, or empty_camera_0
 }
 
 result = client.predict(observation, action_steps=20)
@@ -208,6 +237,43 @@ inference:
 
 ## Troubleshooting
 
+### "All image features are missing from the batch" Error
+SmolVLA **requires at least one camera image**. Make sure your observation includes one of:
+- `observation.images.camera1`
+- `observation.images.camera2`
+- `observation.images.camera3`
+- `observation.images.empty_camera_0`
+
+Example:
+```python
+image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+observation = {
+    "observation.state": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+    "task": "pick up the red block",
+    "observation.images.camera1": client.encode_image(image)
+}
+```
+
+### Timeout Errors / "Read timed out"
+
+**Problem:** Requests time out after 60-120 seconds, especially on consecutive requests (step 2, step 3).
+
+**Cause:** Inference can be slow on consecutive requests as GPU processes multiple inputs. Default timeout (120s) may be too short.
+
+**Solution:** Increase the timeout:
+```bash
+# Command line
+python3 client_tunnel.py --local --timeout=180
+
+# Or in your code
+client = LeRobotInferenceClient("http://localhost:8000", timeout=180)
+```
+
+Or predict fewer steps:
+```python
+result = client.predict(observation, action_steps=5)  # Faster than action_steps=32
+```
+
 ### Port Already in Use
 ```bash
 # Kill existing server
@@ -227,6 +293,9 @@ python3 inference_server.py --device=cpu
 - Ensure port visibility is set to **Public** in VSCode
 - Check firewall settings
 - Verify tunnel URL is correct (should end with `.use.devtunnels.ms` or similar)
+
+### Server Takes Long to Start
+Model loading takes ~20-30 seconds. Wait for "Model loaded successfully" message before making requests.
 
 ## Files
 
